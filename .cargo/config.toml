@@ -1,0 +1,9 @@
+# L'index officiel index.crates.io ne répond pas depuis ce réseau.
+# Ce miroir sparse permet à Cargo de télécharger les dépendances.
+# Supprimez ce fichier pour revenir à crates.io.
+
+[source.crates-io]
+replace-with = "rsproxy-sparse"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
