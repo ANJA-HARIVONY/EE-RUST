@@ -19,7 +19,6 @@
   const hourPx = 56;
   let mode = $state<"day" | "week" | "month">("week");
   let cursor = $state(startOfDay(new Date()));
-  let employeeFilter = $state(0);
   let appointments = $state<Appointment[]>([]);
   let clients = $state<Client[]>([]);
   let employees = $state<Employee[]>([]);
@@ -36,11 +35,7 @@
   let error = $state<string | null>(null);
   let busy = $state(false);
 
-  const filterId = $derived(Number(employeeFilter) || 0);
   const activeEmployees = $derived(employees.filter((employee) => employee.active));
-  const visibleEmployees = $derived(
-    filterId ? activeEmployees.filter((employee) => employee.id === filterId) : activeEmployees,
-  );
   const selected = $derived(appointments.find((item) => item.id === selectedId) ?? null);
 
   const range = $derived.by(() => {
@@ -63,7 +58,7 @@
 
   const columns = $derived.by(() => {
     if (mode === "day") {
-      return visibleEmployees.map((employee) => ({
+      return activeEmployees.map((employee) => ({
         key: `e-${employee.id}`,
         label: fullName(employee.firstName, employee.lastName),
         color: employee.color,
@@ -78,7 +73,7 @@
         label: day.toLocaleDateString(boot.locale, { weekday: "short", day: "numeric" }),
         color: "",
         day,
-        employeeId: filterId || null,
+        employeeId: null,
       };
     });
   });
@@ -87,7 +82,6 @@
     const when = new Date(appointment.startsAt);
     if (!sameDay(when, column.day)) return false;
     if (column.employeeId && appointment.employeeId !== column.employeeId) return false;
-    if (!column.employeeId && filterId && appointment.employeeId !== filterId) return false;
     return true;
   }
 
@@ -104,7 +98,7 @@
 
   async function load() {
     const [nextAppointments, nextClients, nextEmployees, nextServices] = await Promise.all([
-      api.appointmentsList(range.from.toISOString(), range.to.toISOString(), filterId || null, null),
+      api.appointmentsList(range.from.toISOString(), range.to.toISOString(), null, null),
       api.clientsList(""),
       api.employeesList(true),
       api.servicesList(false),
@@ -119,7 +113,7 @@
     editing = true;
     selectedId = null;
     clientId = clients[0]?.id ?? 0;
-    employeeId = assignedEmployee || filterId || boot.currentUser.id;
+    employeeId = assignedEmployee || boot.currentUser.id;
     startValue = toLocalInput(start.toISOString());
     const end = new Date(start.getTime() + 60 * 60000);
     endValue = toLocalInput(end.toISOString());
@@ -213,28 +207,81 @@
   const monthCells = $derived(
     Array.from({ length: 42 }, (_, index) => addDays(startOfWeek(startOfMonth(cursor)), index)),
   );
+  const weekdayLabels = $derived(
+    Array.from({ length: 7 }, (_, index) =>
+      addDays(startOfWeek(new Date(2026, 0, 5)), index).toLocaleDateString(boot.locale, { weekday: "narrow" }),
+    ),
+  );
+  const miniMonths = $derived.by(() => {
+    const anchor = mode === "month" ? cursor : range.from;
+    const first = startOfMonth(anchor);
+    const second = new Date(first);
+    second.setMonth(second.getMonth() + 1);
+    return [first, second];
+  });
+  const today = startOfDay(new Date());
+
+  function miniCells(month: Date): Date[] {
+    const cells = Array.from({ length: 42 }, (_, index) => addDays(startOfWeek(startOfMonth(month)), index));
+    while (cells.length > 7 && cells[cells.length - 7].getMonth() !== month.getMonth()) cells.splice(cells.length - 7, 7);
+    return cells;
+  }
+
+  function daySelected(day: Date): boolean {
+    if (mode === "day") return sameDay(day, cursor);
+    if (mode === "month") return day.getFullYear() === cursor.getFullYear() && day.getMonth() === cursor.getMonth();
+    const start = startOfWeek(cursor);
+    const time = startOfDay(day).getTime();
+    return time >= start.getTime() && time < addDays(start, 7).getTime();
+  }
+
+  function pickDay(day: Date) {
+    cursor = startOfDay(day);
+  }
 
   $effect(() => {
     mode;
     cursor.getTime();
-    filterId;
     load().catch((cause) => (error = errText(cause)));
   });
 </script>
 
 <section class="agenda">
+  <aside class="mini-cal" aria-label="Calendrier">
+    {#each miniMonths as month (`${month.getFullYear()}-${month.getMonth()}`)}
+      <div class="mini-month">
+        <div class="mini-title">{month.toLocaleDateString(boot.locale, { month: "long", year: "numeric" })}</div>
+        <div class="mini-grid">
+          {#each weekdayLabels as label, index (`wd-${index}`)}
+            <div class="mini-wd">{label}</div>
+          {/each}
+          {#each miniCells(month) as day, index (`${month.getMonth()}-${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`)}
+            <button
+              type="button"
+              class="mini-day"
+              class:out={day.getMonth() !== month.getMonth()}
+              class:today={sameDay(day, today)}
+              class:in-range={daySelected(day)}
+              class:range-start={daySelected(day) && (index % 7 === 0 || !daySelected(addDays(day, -1)))}
+              class:range-end={daySelected(day) && (index % 7 === 6 || !daySelected(addDays(day, 1)))}
+              aria-label={formatDay(day, boot.locale)}
+              aria-pressed={daySelected(day)}
+              aria-current={sameDay(day, today) ? "date" : undefined}
+              onclick={() => pickDay(day)}
+            >
+              <span>{day.getDate()}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  </aside>
   <div class="calendar">
     <div class="cal-toolbar">
       <button class="btn" onclick={() => shift(-1)} aria-label="Précédent">‹</button>
       <button class="btn" onclick={() => (cursor = startOfDay(new Date()))}>Aujourd'hui</button>
       <button class="btn" onclick={() => shift(1)} aria-label="Suivant">›</button>
       <h2>{title}</h2>
-      <select bind:value={employeeFilter}>
-        <option value={0}>Tous les employés</option>
-        {#each activeEmployees as employee (employee.id)}
-          <option value={employee.id}>{fullName(employee.firstName, employee.lastName)}</option>
-        {/each}
-      </select>
       <div class="views">
         <button class="btn" class:on={mode === "day"} onclick={() => (mode = "day")}>Jour</button>
         <button class="btn" class:on={mode === "week"} onclick={() => (mode = "week")}>Semaine</button>
