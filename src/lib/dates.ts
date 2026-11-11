@@ -33,6 +33,14 @@ export function fromLocalInput(value: string): string {
   return new Date(value).toISOString();
 }
 
+export function formatDate(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 export function formatWhen(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, {
     weekday: "short",
@@ -41,6 +49,10 @@ export function formatWhen(iso: string, locale: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+export function formatHour(hour: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { hour: "numeric" }).format(new Date(2026, 0, 1, hour, 0, 0));
 }
 
 export function formatDay(date: Date, locale: string): string {

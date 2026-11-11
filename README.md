@@ -34,10 +34,12 @@ Les variables vivent dans `.env`, à la racine du projet. Un exemple est fourni 
 | `AGENDA_OPEN_HOUR` | Heure d'ouverture de la grille |
 | `AGENDA_CLOSE_HOUR` | Heure de fermeture de la grille |
 | `AGENDA_SLOT_MINUTES` | `5`, `10`, `15`, `20`, `30` ou `60` |
-| `LOCALE` | Affichage des dates et des montants, par exemple `fr-FR` |
+| `LOCALE` | Langue proposée au premier lancement si aucun choix n'est encore mémorisé. `fr-FR` ouvre en français, une valeur qui commence par `es` ouvre en español |
 | `LOW_STOCK_DEFAULT` | Seuil proposé à la création d'un produit |
 
-Au premier lancement, le nom du salon, la TVA, la devise, le préfixe de facture et l'utilisateur par défaut sont copiés dans SQLite. Les lancer de nouveau ne les réécrit pas : l'écran Réglages modifie ensuite la base. Les horaires d'agenda, la locale, le seuil proposé et le nom du fichier sont relus dans `.env` à chaque démarrage.
+Au premier lancement, le nom du salon, la TVA, la devise, le préfixe de facture et l'utilisateur par défaut sont copiés dans SQLite. Les lancer de nouveau ne les réécrit pas : l'écran Réglages modifie ensuite la base. Les horaires d'agenda, le seuil proposé et le nom du fichier sont relus dans `.env` à chaque démarrage.
+
+La langue de l'interface se choisit dans Réglages : français ou español. Ce choix est mémorisé sur l'ordinateur et s'applique tout de suite aux textes, aux dates et aux montants. Tant qu'aucun choix n'a été fait, `LOCALE` décide de la langue d'ouverture.
 
 Les prix sont stockés en centimes. Une facture émise fige le taux de TVA et les prix des lignes.
 
@@ -74,4 +76,4 @@ Le test couvre le premier lancement (réglages et utilisateur par défaut), le r
 - **Produits** — stock, entrées, sorties, ajustement, alerte sous le seuil. La vente passe par une facture.
 - **Employés** — fiche, rôle, couleur d'agenda, activation. Il reste toujours au moins un administrateur actif.
 - **Factures** — brouillon, import d'un rendez-vous, lignes produit, émission, paiement, annulation. L'émission décrémente le stock. L'annulation le restaure.
-- **Réglages** — identité du salon, devise, TVA et préfixe, initialisés depuis `.env`.
+- **Réglages** — langue (français ou español), identité du salon, devise, TVA et préfixe. L'identité est initialisée depuis `.env`.

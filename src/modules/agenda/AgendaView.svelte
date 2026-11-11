@@ -3,6 +3,7 @@
   import {
     addDays,
     formatDay,
+    formatHour,
     formatWhen,
     sameDay,
     startOfDay,
@@ -10,7 +11,8 @@
     startOfWeek,
     toLocalInput,
   } from "../../lib/dates";
-  import { appointmentStatus, errText, fullName } from "../../lib/labels";
+  import { appointmentStatusCodes, appointmentStatusLabel, messages, uiLocale } from "../../lib/i18n/index.svelte";
+  import { errText, fullName } from "../../lib/labels";
   import { formatMoney } from "../../lib/money";
   import type { Appointment, Bootstrap, Client, Employee, Service } from "../../lib/types";
 
@@ -34,6 +36,8 @@
   let serviceIds = $state<number[]>([]);
   let error = $state<string | null>(null);
   let busy = $state(false);
+  const m = $derived(messages());
+  const loc = $derived(uiLocale());
 
   const activeEmployees = $derived(employees.filter((employee) => employee.active));
   const selected = $derived(appointments.find((item) => item.id === selectedId) ?? null);
@@ -47,13 +51,13 @@
   });
 
   const title = $derived.by(() => {
-    if (mode === "day") return formatDay(cursor, boot.locale);
+    if (mode === "day") return formatDay(cursor, loc);
     if (mode === "week") {
       const start = startOfWeek(cursor);
       const end = addDays(start, 6);
-      return `${start.toLocaleDateString(boot.locale, { day: "numeric", month: "short" })} – ${end.toLocaleDateString(boot.locale, { day: "numeric", month: "long", year: "numeric" })}`;
+      return `${start.toLocaleDateString(loc, { day: "numeric", month: "short" })} – ${end.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" })}`;
     }
-    return cursor.toLocaleDateString(boot.locale, { month: "long", year: "numeric" });
+    return cursor.toLocaleDateString(loc, { month: "long", year: "numeric" });
   });
 
   const columns = $derived.by(() => {
@@ -70,7 +74,7 @@
       const day = addDays(startOfWeek(cursor), index);
       return {
         key: `d-${day.toISOString()}`,
-        label: day.toLocaleDateString(boot.locale, { weekday: "short", day: "numeric" }),
+        label: day.toLocaleDateString(loc, { weekday: "short", day: "numeric" }),
         color: "",
         day,
         employeeId: null,
@@ -162,11 +166,11 @@
     const start = new Date(startValue);
     const end = new Date(endValue);
     if (!clientId || !employeeId) {
-      error = "Client et employé sont obligatoires.";
+      error = m.agenda.required;
       return;
     }
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      error = "Date ou heure invalide.";
+      error = m.agenda.invalidDate;
       return;
     }
     busy = true;
@@ -207,9 +211,14 @@
   const monthCells = $derived(
     Array.from({ length: 42 }, (_, index) => addDays(startOfWeek(startOfMonth(cursor)), index)),
   );
+  const weekdayShort = $derived(
+    Array.from({ length: 7 }, (_, index) =>
+      addDays(startOfWeek(new Date(2026, 0, 5)), index).toLocaleDateString(loc, { weekday: "short" }),
+    ),
+  );
   const weekdayLabels = $derived(
     Array.from({ length: 7 }, (_, index) =>
-      addDays(startOfWeek(new Date(2026, 0, 5)), index).toLocaleDateString(boot.locale, { weekday: "narrow" }),
+      addDays(startOfWeek(new Date(2026, 0, 5)), index).toLocaleDateString(loc, { weekday: "narrow" }),
     ),
   );
   const miniMonths = $derived.by(() => {
@@ -247,10 +256,10 @@
 </script>
 
 <section class="agenda">
-  <aside class="mini-cal" aria-label="Calendrier">
+  <aside class="mini-cal" aria-label={m.nav.calendar}>
     {#each miniMonths as month (`${month.getFullYear()}-${month.getMonth()}`)}
       <div class="mini-month">
-        <div class="mini-title">{month.toLocaleDateString(boot.locale, { month: "long", year: "numeric" })}</div>
+        <div class="mini-title">{month.toLocaleDateString(loc, { month: "long", year: "numeric" })}</div>
         <div class="mini-grid">
           {#each weekdayLabels as label, index (`wd-${index}`)}
             <div class="mini-wd">{label}</div>
@@ -264,7 +273,7 @@
               class:in-range={daySelected(day)}
               class:range-start={daySelected(day) && (index % 7 === 0 || !daySelected(addDays(day, -1)))}
               class:range-end={daySelected(day) && (index % 7 === 6 || !daySelected(addDays(day, 1)))}
-              aria-label={formatDay(day, boot.locale)}
+              aria-label={formatDay(day, loc)}
               aria-pressed={daySelected(day)}
               aria-current={sameDay(day, today) ? "date" : undefined}
               onclick={() => pickDay(day)}
@@ -278,14 +287,14 @@
   </aside>
   <div class="calendar">
     <div class="cal-toolbar">
-      <button class="btn" onclick={() => shift(-1)} aria-label="Précédent">‹</button>
-      <button class="btn" onclick={() => (cursor = startOfDay(new Date()))}>Aujourd'hui</button>
-      <button class="btn" onclick={() => shift(1)} aria-label="Suivant">›</button>
+      <button class="btn" onclick={() => shift(-1)} aria-label={m.agenda.previous}>‹</button>
+      <button class="btn" onclick={() => (cursor = startOfDay(new Date()))}>{m.agenda.today}</button>
+      <button class="btn" onclick={() => shift(1)} aria-label={m.agenda.next}>›</button>
       <h2>{title}</h2>
       <div class="views">
-        <button class="btn" class:on={mode === "day"} onclick={() => (mode = "day")}>Jour</button>
-        <button class="btn" class:on={mode === "week"} onclick={() => (mode = "week")}>Semaine</button>
-        <button class="btn" class:on={mode === "month"} onclick={() => (mode = "month")}>Mois</button>
+        <button class="btn" class:on={mode === "day"} onclick={() => (mode = "day")}>{m.agenda.day}</button>
+        <button class="btn" class:on={mode === "week"} onclick={() => (mode = "week")}>{m.agenda.week}</button>
+        <button class="btn" class:on={mode === "month"} onclick={() => (mode = "month")}>{m.agenda.month}</button>
       </div>
     </div>
     <div class="legend">
@@ -296,7 +305,7 @@
     <div class="grid-wrap">
       {#if mode === "month"}
         <div class="month">
-          {#each ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."] as label}
+          {#each weekdayShort as label}
             <div class="day-head">{label}</div>
           {/each}
           {#each monthCells as day}
@@ -325,7 +334,7 @@
           {/each}
           <div class="hours" style:height={`${hours.length * hourPx}px`}>
             {#each hours as hour}
-              <div class="hline" style:top={`${(hour - boot.agendaOpenHour) * hourPx}px`}>{hour}h</div>
+              <div class="hline" style:top={`${(hour - boot.agendaOpenHour) * hourPx}px`}>{formatHour(hour, loc)}</div>
             {/each}
           </div>
           {#each columns as column (column.key)}
@@ -346,7 +355,7 @@
                   onclick={(event) => { event.stopPropagation(); openAppointment(appointment); }}
                 >
                   <b>{appointment.clientName}</b>
-                  <span>{new Date(appointment.startsAt).toLocaleTimeString(boot.locale, { hour: "2-digit", minute: "2-digit" })} · {appointment.employeeName}</span>
+                  <span>{new Date(appointment.startsAt).toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" })} · {appointment.employeeName}</span>
                 </button>
               {/each}
             </div>
@@ -357,46 +366,46 @@
   </div>
   <aside class="detail" style="width: 340px; flex: none; border-left: 1px solid var(--line);">
     <header>
-      <h2>{selected ? "Rendez-vous" : editing ? "Nouveau rendez-vous" : "Détail"}</h2>
-      <button class="btn primary" onclick={() => draft(new Date(), null)}>Nouveau</button>
+      <h2>{selected ? m.agenda.appointment : editing ? m.agenda.newAppointment : m.agenda.detail}</h2>
+      <button class="btn primary" onclick={() => draft(new Date(), null)}>{m.common.new}</button>
     </header>
     {#if !editing}
       <p class="empty">
         {#if selected}
-          {selected.clientName} · {formatWhen(selected.startsAt, boot.locale)}
+          {selected.clientName} · {formatWhen(selected.startsAt, loc)}
         {:else}
-          Cliquez un créneau pour créer un rendez-vous, ou un bloc pour l'ouvrir.
+          {m.agenda.hint}
         {/if}
       </p>
     {:else}
       <form class="form" onsubmit={(event) => { event.preventDefault(); save(); }}>
         {#if error}<p class="error">{error}</p>{/if}
-        <label class="field">Client
+        <label class="field">{m.agenda.client}
           <select bind:value={clientId}>
             {#each clients as client (client.id)}
               <option value={client.id}>{fullName(client.firstName, client.lastName)}</option>
             {/each}
           </select>
         </label>
-        {#if clients.length === 0}<p class="muted">Ajoutez d'abord un client.</p>{/if}
-        <label class="field">Employé
+        {#if clients.length === 0}<p class="muted">{m.agenda.addClient}</p>{/if}
+        <label class="field">{m.agenda.employee}
           <select bind:value={employeeId}>
             {#each activeEmployees as employee (employee.id)}
               <option value={employee.id}>{fullName(employee.firstName, employee.lastName)}</option>
             {/each}
           </select>
         </label>
-        <label class="field">Début <input type="datetime-local" bind:value={startValue} required /></label>
-        <label class="field">Fin <input type="datetime-local" bind:value={endValue} required /></label>
-        <label class="field">Statut
+        <label class="field">{m.agenda.start} <input type="datetime-local" bind:value={startValue} required /></label>
+        <label class="field">{m.agenda.end} <input type="datetime-local" bind:value={endValue} required /></label>
+        <label class="field">{m.agenda.status}
           <select bind:value={status}>
-            {#each Object.entries(appointmentStatus) as [value, label]}
-              <option {value}>{label}</option>
+            {#each appointmentStatusCodes() as value}
+              <option {value}>{appointmentStatusLabel(value)}</option>
             {/each}
           </select>
         </label>
         <div class="field">
-          <span>Prestations</span>
+          <span>{m.agenda.services}</span>
           {#each services as service (service.id)}
             <label class="check">
               <input
@@ -404,15 +413,15 @@
                 checked={serviceIds.includes(service.id)}
                 onchange={() => toggleService(service.id)}
               />
-              <span>{service.name} · {service.durationMinutes} min · {formatMoney(service.priceCents, boot.settings.currency, boot.locale)}</span>
+              <span>{service.name} · {service.durationMinutes} min · {formatMoney(service.priceCents, boot.settings.currency, loc)}</span>
             </label>
           {:else}
-            <p class="muted">Aucune prestation active.</p>
+            <p class="muted">{m.agenda.noServices}</p>
           {/each}
         </div>
-        <label class="field">Notes <textarea bind:value={notes}></textarea></label>
+        <label class="field">{m.common.notes} <textarea bind:value={notes}></textarea></label>
         <div class="actions">
-          <button class="btn primary" disabled={busy}>Enregistrer</button>
+          <button class="btn primary" disabled={busy}>{m.common.save}</button>
         </div>
       </form>
     {/if}

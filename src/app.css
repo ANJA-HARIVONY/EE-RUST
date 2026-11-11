@@ -303,3 +303,40 @@ th { color: var(--muted); font-weight: 600; }
 .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 6px 12px; color: var(--muted); }
 .search { width: 100%; }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html:has(.invoice-sheet),
+  html:has(.invoice-sheet) body,
+  html:has(.invoice-sheet) #app,
+  html:has(.invoice-sheet) .shell,
+  html:has(.invoice-sheet) .body,
+  html:has(.invoice-sheet) .workspace,
+  html:has(.invoice-sheet) .split,
+  html:has(.invoice-sheet) .detail,
+  html:has(.invoice-sheet) .invoice-scroll,
+  html:has(.invoice-sheet) .sheet-stage {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    border: 0 !important;
+    width: auto !important;
+  }
+  html:has(.invoice-sheet) .topbar,
+  html:has(.invoice-sheet) .sidebar,
+  html:has(.invoice-sheet) .list,
+  html:has(.invoice-sheet) .detail > header,
+  html:has(.invoice-sheet) .invoice-tools,
+  html:has(.invoice-sheet) .error,
+  html:has(.invoice-sheet) .no-print {
+    display: none !important;
+  }
+  html:has(.invoice-sheet) .invoice-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+}

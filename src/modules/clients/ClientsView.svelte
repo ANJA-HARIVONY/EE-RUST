@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
+  import { messages } from "../../lib/i18n/index.svelte";
   import { errText, fullName } from "../../lib/labels";
   import type { Bootstrap, Client } from "../../lib/types";
 
@@ -15,6 +16,7 @@
   let notes = $state("");
   let error = $state<string | null>(null);
   let busy = $state(false);
+  const m = $derived(messages());
 
   async function load() {
     items = await api.clientsList(query);
@@ -69,44 +71,44 @@
 <section class="split">
   <aside class="list">
     <header>
-      <h2>Clients</h2>
-      <button class="btn primary" onclick={create}>Nouveau</button>
+      <h2>{m.clients.title}</h2>
+      <button class="btn primary" onclick={create}>{m.common.new}</button>
     </header>
     <div style="padding: 8px 12px;">
-      <input class="search" type="search" placeholder="Nom, téléphone, e-mail" bind:value={query} oninput={load} />
+      <input class="search" type="search" placeholder={m.clients.search} bind:value={query} oninput={load} />
     </div>
     <div class="scroll">
       {#if items.length === 0}
-        <p class="empty">Aucun client.</p>
+        <p class="empty">{m.clients.empty}</p>
       {/if}
       {#each items as client (client.id)}
         <button class="row" class:active={selected === client.id} onclick={() => open(client)}>
           <b>{fullName(client.firstName, client.lastName)}</b>
-          <span>{client.phone || client.email || "Sans coordonnées"}</span>
+          <span>{client.phone || client.email || m.clients.noContact}</span>
         </button>
       {/each}
     </div>
   </aside>
   <section class="detail">
-    <header><h2>{selected === "new" ? "Nouveau client" : "Fiche client"}</h2></header>
+    <header><h2>{selected === "new" ? m.clients.newTitle : m.clients.cardTitle}</h2></header>
     {#if selected === null}
-      <p class="empty">Sélectionnez un client ou créez-en un.</p>
+      <p class="empty">{m.clients.pick}</p>
     {:else}
       <form class="form" onsubmit={(event) => { event.preventDefault(); save(); }}>
         {#if error}<p class="error">{error}</p>{/if}
         <div class="cols">
-          <label class="field">Prénom <input bind:value={firstName} required /></label>
-          <label class="field">Nom <input bind:value={lastName} required /></label>
+          <label class="field">{m.common.firstName} <input bind:value={firstName} required /></label>
+          <label class="field">{m.common.lastName} <input bind:value={lastName} required /></label>
         </div>
         <div class="cols">
-          <label class="field">Téléphone <input bind:value={phone} /></label>
-          <label class="field">E-mail <input type="email" bind:value={email} /></label>
+          <label class="field">{m.common.phone} <input bind:value={phone} /></label>
+          <label class="field">{m.common.email} <input type="email" bind:value={email} /></label>
         </div>
-        <label class="field">Notes <textarea bind:value={notes}></textarea></label>
+        <label class="field">{m.common.notes} <textarea bind:value={notes}></textarea></label>
         <div class="actions">
-          <button class="btn primary" type="submit" disabled={busy}>Enregistrer</button>
+          <button class="btn primary" type="submit" disabled={busy}>{m.common.save}</button>
         </div>
-        <p class="muted">Les montants du salon s'affichent en {boot.settings.currency}.</p>
+        <p class="muted">{m.clients.currencyHint(boot.settings.currency)}</p>
       </form>
     {/if}
   </section>

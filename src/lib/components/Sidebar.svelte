@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { messages } from "../i18n/index.svelte";
   import type { ModuleId } from "../types";
 
   let {
@@ -11,15 +12,16 @@
     onChange: (id: ModuleId) => void;
   } = $props();
 
-  const items: { id: ModuleId; label: string }[] = [
-    { id: "agenda", label: "Agenda" },
-    { id: "clients", label: "Clients" },
-    { id: "services", label: "Services" },
-    { id: "products", label: "Produits" },
-    { id: "employees", label: "Employés" },
-    { id: "invoices", label: "Factures" },
-    { id: "settings", label: "Réglages" },
-  ];
+  const m = $derived(messages());
+  const items = $derived<{ id: ModuleId; label: string }[]>([
+    { id: "agenda", label: m.nav.agenda },
+    { id: "clients", label: m.nav.clients },
+    { id: "services", label: m.nav.services },
+    { id: "products", label: m.nav.products },
+    { id: "employees", label: m.nav.employees },
+    { id: "invoices", label: m.nav.invoices },
+    { id: "settings", label: m.nav.settings },
+  ]);
 </script>
 
 <nav class="sidebar">

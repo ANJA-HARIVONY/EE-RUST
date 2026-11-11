@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "../../lib/api";
+  import { getLang, messages, setLang, type Lang } from "../../lib/i18n/index.svelte";
   import { errText } from "../../lib/labels";
   import { formatVat } from "../../lib/money";
   import type { Bootstrap, SalonSettings } from "../../lib/types";
@@ -24,11 +25,12 @@
   let error = $state<string | null>(null);
   let saved = $state(false);
   let busy = $state(false);
+  const m = $derived(messages());
 
   async function save() {
     const normalized = vat.trim().replace(",", ".");
     if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
-      error = "Taux de TVA invalide.";
+      error = m.settings.invalidVat;
       return;
     }
     const vatRateBps = Math.round(Number(normalized) * 100);
@@ -57,40 +59,48 @@
 </script>
 
 <section class="detail">
-  <header><h2>Réglages du salon</h2></header>
+  <header><h2>{m.settings.title}</h2></header>
   <form class="form" onsubmit={(event) => { event.preventDefault(); save(); }}>
-    <p class="muted">
-      Ces informations ont été créées depuis le fichier <b>.env</b> au premier lancement.
-      Les enregistrer ici met à jour la base locale. Les horaires d'agenda
-      ({boot.agendaOpenHour}h–{boot.agendaCloseHour}h, créneaux de {boot.agendaSlotMinutes} min)
-      et la locale ({boot.locale}) restent lus dans .env à chaque démarrage.
-    </p>
+    <p class="muted">{m.settings.intro(boot.agendaOpenHour, boot.agendaCloseHour, boot.agendaSlotMinutes)}</p>
+    <label class="field">{m.settings.language}
+      <select
+        value={getLang()}
+        onchange={(event) => setLang(event.currentTarget.value as Lang)}
+      >
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+      </select>
+    </label>
+    <p class="muted">{m.settings.languageHint}</p>
     {#if error}<p class="error">{error}</p>{/if}
-    {#if saved}<p class="ok">Réglages enregistrés. TVA actuelle : {formatVat(boot.settings.vatRateBps)}.</p>{/if}
-    <label class="field">Nom du salon <input bind:value={name} required /></label>
-    <label class="field">Adresse <input bind:value={address} /></label>
+    {#if saved}<p class="ok">{m.settings.saved(formatVat(boot.settings.vatRateBps))}</p>{/if}
+    <label class="field">{m.settings.salonName} <input bind:value={name} required /></label>
+    <label class="field">{m.settings.address} <input bind:value={address} /></label>
     <div class="cols">
-      <label class="field">Téléphone <input bind:value={phone} /></label>
-      <label class="field">E-mail <input bind:value={email} /></label>
+      <label class="field">{m.common.phone} <input bind:value={phone} /></label>
+      <label class="field">{m.common.email} <input bind:value={email} /></label>
     </div>
-    <label class="field">SIRET <input bind:value={siret} /></label>
+    <label class="field">{m.settings.siret} <input bind:value={siret} /></label>
     <div class="cols">
-      <label class="field">Devise (ISO) <input bind:value={currency} maxlength="3" /></label>
-      <label class="field">TVA (%) <input bind:value={vat} /></label>
+      <label class="field">{m.settings.currency} <input bind:value={currency} maxlength="3" /></label>
+      <label class="field">{m.settings.vat} <input bind:value={vat} /></label>
     </div>
     <div class="cols">
-      <label class="field">Préfixe facture <input bind:value={prefix} /></label>
-      <label class="field">Prochain numéro
+      <label class="field">{m.settings.prefix} <input bind:value={prefix} /></label>
+      <label class="field">{m.settings.nextNumber}
         <input value={boot.settings.nextInvoiceSeq} readonly />
       </label>
     </div>
-    <p class="muted">Fichier de données : {boot.databasePath}</p>
+    <p class="muted">{m.settings.dataFile(boot.databasePath)}</p>
     <p class="muted">
-      Utilisateur de session : {boot.currentUser.firstName} {boot.currentUser.lastName}
-      ({boot.currentUser.email ?? "sans e-mail"}), reconnu via DEFAULT_USER_EMAIL.
+      {m.settings.sessionUser(
+        boot.currentUser.firstName,
+        boot.currentUser.lastName,
+        boot.currentUser.email ?? m.settings.noEmail,
+      )}
     </p>
     <div class="actions">
-      <button class="btn primary" disabled={busy}>Enregistrer</button>
+      <button class="btn primary" disabled={busy}>{m.common.save}</button>
     </div>
   </form>
 </section>

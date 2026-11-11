@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
-  import { addDays, formatWhen, startOfDay } from "../../lib/dates";
-  import { errText, invoiceStatus } from "../../lib/labels";
+  import { addDays, formatDate, formatWhen, startOfDay } from "../../lib/dates";
+  import { invoiceStatusLabel, messages, uiLocale } from "../../lib/i18n/index.svelte";
+  import { errText } from "../../lib/labels";
   import { formatMoney, formatVat } from "../../lib/money";
   import type { Appointment, Bootstrap, Client, Employee, Invoice, InvoiceSummary, Product, Service } from "../../lib/types";
 
@@ -24,6 +25,32 @@
   let quantity = $state("1");
   let error = $state<string | null>(null);
   let busy = $state(false);
+  const m = $derived(messages());
+  const loc = $derived(uiLocale());
+  const salon = $derived(boot.settings);
+  const salonInitial = $derived((salon.name.trim().charAt(0) || "S").toUpperCase());
+  const billedClient = $derived.by(() => {
+    const current = invoice;
+    if (!current) return null;
+    return clients.find((client) => client.id === current.clientId) ?? null;
+  });
+
+  function sheetDate(current: Invoice): string {
+    return current.issuedAt ? formatDate(current.issuedAt, loc) : "—";
+  }
+
+  function paymentText(current: Invoice): string {
+    if (current.status === "paid") {
+      return m.invoices.paidOn(current.paidAt ? formatDate(current.paidAt, loc) : "—");
+    }
+    if (current.status === "issued") return m.invoices.awaitingPayment;
+    if (current.status === "cancelled") return m.invoices.cancelledNotice;
+    return m.invoices.draftNotice;
+  }
+
+  function printInvoice() {
+    window.print();
+  }
 
   async function loadList() {
     items = await api.invoicesList();
@@ -59,7 +86,7 @@
 
   async function createInvoice() {
     if (!clientId) {
-      error = "Choisissez un client.";
+      error = m.invoices.chooseClient;
       return;
     }
     busy = true;
@@ -84,7 +111,7 @@
     if (!invoice) return;
     const qty = Number(quantity);
     if (!Number.isInteger(qty) || qty <= 0) {
-      error = "Quantité invalide.";
+      error = m.invoices.invalidQty;
       return;
     }
     busy = true;
@@ -172,20 +199,20 @@
 <section class="split">
   <aside class="list">
     <header>
-      <h2>Factures</h2>
-      <button class="btn primary" onclick={startCreate}>Nouvelle</button>
+      <h2>{m.invoices.title}</h2>
+      <button class="btn primary" onclick={startCreate}>{m.invoices.newButton}</button>
     </header>
     <div class="scroll">
       {#each items as item (item.id)}
         <button class="row" class:active={invoice?.id === item.id} onclick={() => open(item.id)}>
-          <b>{item.status === "draft" ? "Brouillon" : item.number}</b>
+          <b>{item.status === "draft" ? m.invoiceStatus.draft : item.number}</b>
           <span>
-            {item.clientName} · {invoiceStatus[item.status] ?? item.status} ·
-            {formatMoney(item.totalCents, item.currency, boot.locale)}
+            {item.clientName} · {invoiceStatusLabel(item.status)} ·
+            {formatMoney(item.totalCents, item.currency, loc)}
           </span>
         </button>
       {:else}
-        <p class="empty">Aucune facture.</p>
+        <p class="empty">{m.invoices.empty}</p>
       {/each}
     </div>
   </aside>
@@ -193,122 +220,363 @@
     <header>
       <h2>
         {#if creating && !invoice}
-          Nouvelle facture
+          {m.invoices.newTitle}
         {:else if invoice}
-          {invoice.status === "draft" ? "Brouillon" : invoice.number}
+          {invoice.status === "draft" ? m.invoiceStatus.draft : invoice.number}
         {:else}
-          Facture
+          {m.invoices.cardTitle}
         {/if}
       </h2>
-      {#if invoice}<span class="status" data-status={invoice.status}>{invoiceStatus[invoice.status]}</span>{/if}
+      {#if invoice}<span class="status" data-status={invoice.status}>{invoiceStatusLabel(invoice.status)}</span>{/if}
+      {#if invoice?.status === "paid"}
+        <button class="btn primary no-print" type="button" onclick={printInvoice}>{m.invoices.print}</button>
+      {/if}
     </header>
     {#if error}<p class="error" style="margin: 12px 16px 0;">{error}</p>{/if}
     {#if creating && !invoice}
       <form class="form" onsubmit={(event) => { event.preventDefault(); createInvoice(); }}>
-        <label class="field">Client
+        <label class="field">{m.invoices.client}
           <select bind:value={clientId} onchange={() => loadAppointments(Number(clientId))}>
             {#each clients as client (client.id)}
               <option value={client.id}>{client.firstName} {client.lastName}</option>
             {/each}
           </select>
         </label>
-        <label class="field">Employé
+        <label class="field">{m.invoices.employee}
           <select bind:value={employeeId}>
-            <option value={0}>Non assigné</option>
+            <option value={0}>{m.invoices.unassigned}</option>
             {#each employees as employee (employee.id)}
               <option value={employee.id}>{employee.firstName} {employee.lastName}</option>
             {/each}
           </select>
         </label>
-        <label class="field">Importer un rendez-vous
+        <label class="field">{m.invoices.importAppointment}
           <select bind:value={appointmentId}>
-            <option value={0}>Aucun</option>
+            <option value={0}>{m.invoices.none}</option>
             {#each appointments as appointment (appointment.id)}
               <option value={appointment.id}>
-                {formatWhen(appointment.startsAt, boot.locale)} · {appointment.clientName}
+                {formatWhen(appointment.startsAt, loc)} · {appointment.clientName}
               </option>
             {/each}
           </select>
         </label>
-        <label class="field">Notes <textarea bind:value={notes}></textarea></label>
-        <div class="actions"><button class="btn primary" disabled={busy}>Créer le brouillon</button></div>
+        <label class="field">{m.common.notes} <textarea bind:value={notes}></textarea></label>
+        <div class="actions"><button class="btn primary" disabled={busy}>{m.invoices.createDraft}</button></div>
       </form>
     {:else if invoice}
-      <div class="form">
-        <p><b>{invoice.clientName}</b> {#if invoice.employeeName}· {invoice.employeeName}{/if}</p>
-        <table>
-          <thead>
-            <tr><th>Description</th><th>Qté</th><th>PU HT</th><th>Total HT</th><th></th></tr>
-          </thead>
-          <tbody>
-            {#each invoice.lines as line (line.id)}
-              <tr>
-                <td>{line.description}</td>
-                <td>{line.quantity}</td>
-                <td>{formatMoney(line.unitPriceCents, invoice.currency, boot.locale)}</td>
-                <td>{formatMoney(line.lineTotalCents, invoice.currency, boot.locale)}</td>
-                <td>
-                  {#if invoice.status === "draft"}
-                    <button class="btn" type="button" onclick={() => removeLine(line.id)}>Retirer</button>
-                  {/if}
-                </td>
-              </tr>
-            {:else}
-              <tr><td colspan="5" class="muted">Aucune ligne.</td></tr>
-            {/each}
-          </tbody>
-        </table>
-        <div class="totals">
-          <div><span>Total HT</span><span>{formatMoney(invoice.subtotalCents, invoice.currency, boot.locale)}</span></div>
-          <div><span>TVA {formatVat(invoice.vatRateBps)}</span><span>{formatMoney(invoice.vatCents, invoice.currency, boot.locale)}</span></div>
-          <div><strong>Total TTC</strong><strong>{formatMoney(invoice.totalCents, invoice.currency, boot.locale)}</strong></div>
-        </div>
-        {#if invoice.status === "draft"}
-          <div class="cols">
-            <label class="field">Prestation
-              <select bind:value={serviceId}>
-                {#each services as service (service.id)}
-                  <option value={service.id}>{service.name}</option>
+      <div class="invoice-scroll">
+        <div class="sheet-stage">
+          <article class="invoice-sheet">
+            <header class="sheet-head">
+              <div class="brand-lockup">
+                <span class="mark" aria-hidden="true">{salonInitial}</span>
+                <div>
+                  <strong>{salon.name}</strong>
+                  <span>{m.invoices.tagline}</span>
+                </div>
+              </div>
+              <div class="sheet-title">
+                <h3>{m.invoices.heading}</h3>
+                <p>{m.invoices.dateLabel} : {sheetDate(invoice)}</p>
+                <p class="sheet-number">{m.invoices.numberLabel} {invoice.number}</p>
+              </div>
+            </header>
+
+            <div class="parties">
+              <div>
+                <h4>{m.invoices.from}</h4>
+                <p>{salon.name}</p>
+                {#if salon.address}<p>{salon.address}</p>{/if}
+                {#if salon.phone}<p>{salon.phone}</p>{/if}
+                {#if salon.email}<p>{salon.email}</p>{/if}
+                {#if salon.siret}<p>{m.settings.siret} {salon.siret}</p>{/if}
+              </div>
+              <div>
+                <h4>{m.invoices.to}</h4>
+                <p>{invoice.clientName}</p>
+                {#if billedClient?.phone}<p>{billedClient.phone}</p>{/if}
+                {#if billedClient?.email}<p>{billedClient.email}</p>{/if}
+                {#if invoice.employeeName}<p>{m.invoices.practitioner} · {invoice.employeeName}</p>{/if}
+              </div>
+            </div>
+
+            <table class="sheet-table">
+              <thead>
+                <tr>
+                  <th>{m.invoices.description}</th>
+                  <th class="num">{m.invoices.unitPrice}</th>
+                  <th class="num">{m.invoices.qty}</th>
+                  <th class="num total">{m.invoices.lineTotal}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each invoice.lines as line (line.id)}
+                  <tr>
+                    <td>
+                      {line.description}
+                      {#if invoice.status === "draft"}
+                        <button class="linkish no-print" type="button" onclick={() => removeLine(line.id)}>{m.invoices.remove}</button>
+                      {/if}
+                    </td>
+                    <td class="num">{formatMoney(line.unitPriceCents, invoice.currency, loc)}</td>
+                    <td class="num">{line.quantity}</td>
+                    <td class="num total">{formatMoney(line.lineTotalCents, invoice.currency, loc)}</td>
+                  </tr>
+                {:else}
+                  <tr><td colspan="4" class="muted">{m.invoices.noLines}</td></tr>
                 {/each}
-              </select>
-            </label>
-            <div class="actions" style="align-items: end;">
-              <button class="btn" type="button" disabled={busy || !serviceId} onclick={() => addLine("service")}>Ajouter</button>
+              </tbody>
+            </table>
+
+            <div class="sheet-bottom">
+              <div>
+                <h4>{m.invoices.payment}</h4>
+                <p>{paymentText(invoice)}</p>
+              </div>
+              <div class="sheet-totals">
+                <div><span>{m.invoices.subtotal}</span><span>{formatMoney(invoice.subtotalCents, invoice.currency, loc)}</span></div>
+                <div><span>{m.invoices.vat(formatVat(invoice.vatRateBps))}</span><span>{formatMoney(invoice.vatCents, invoice.currency, loc)}</span></div>
+                <div class="grand"><span>{m.invoices.total}</span><span>{formatMoney(invoice.totalCents, invoice.currency, loc)}</span></div>
+              </div>
+            </div>
+
+            <footer class="sheet-foot">
+              <div class="sheet-contact">
+                {#if salon.phone}<p>{salon.phone}</p>{/if}
+                {#if salon.email}<p>{salon.email}</p>{/if}
+                {#if salon.siret}<p>{m.settings.siret} {salon.siret}</p>{/if}
+                {#if !salon.phone && !salon.email && !salon.siret}<p>{salon.name}</p>{/if}
+              </div>
+              <div class="sheet-terms">
+                <h4>{m.invoices.terms}</h4>
+                <p>{invoice.notes?.trim() || m.invoices.termsDefault}</p>
+              </div>
+            </footer>
+          </article>
+        </div>
+
+        {#if invoice.status === "draft"}
+          <div class="invoice-tools">
+            <div class="cols">
+              <label class="field">{m.invoices.service}
+                <select bind:value={serviceId}>
+                  {#each services as service (service.id)}
+                    <option value={service.id}>{service.name}</option>
+                  {/each}
+                </select>
+              </label>
+              <div class="actions" style="align-items: end;">
+                <button class="btn" type="button" disabled={busy || !serviceId} onclick={() => addLine("service")}>{m.invoices.add}</button>
+              </div>
+            </div>
+            <div class="cols">
+              <label class="field">{m.invoices.product}
+                <select bind:value={productId}>
+                  {#each products as product (product.id)}
+                    <option value={product.id}>{product.name} · {m.invoices.stock(product.stockQty)}</option>
+                  {/each}
+                </select>
+              </label>
+              <label class="field">{m.products.quantity} <input type="number" min="1" bind:value={quantity} /></label>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" disabled={busy || !productId} onclick={() => addLine("product")}>{m.invoices.addProduct}</button>
+            </div>
+            <label class="field">{m.common.notes} <textarea bind:value={notes}></textarea></label>
+            <div class="actions">
+              <button class="btn" type="button" disabled={busy} onclick={saveNotes}>{m.invoices.saveNote}</button>
+              <button class="btn primary" type="button" disabled={busy} onclick={() => act("issue")}>{m.invoices.issue}</button>
+              <button class="btn danger" type="button" disabled={busy} onclick={() => act("cancel")}>{m.invoices.cancel}</button>
             </div>
           </div>
-          <div class="cols">
-            <label class="field">Produit
-              <select bind:value={productId}>
-                {#each products as product (product.id)}
-                  <option value={product.id}>{product.name} · stock {product.stockQty}</option>
-                {/each}
-              </select>
-            </label>
-            <label class="field">Quantité <input type="number" min="1" bind:value={quantity} /></label>
-          </div>
-          <div class="actions">
-            <button class="btn" type="button" disabled={busy || !productId} onclick={() => addLine("product")}>Ajouter le produit</button>
-          </div>
-          <label class="field">Notes <textarea bind:value={notes}></textarea></label>
-          <div class="actions">
-            <button class="btn" type="button" disabled={busy} onclick={saveNotes}>Enregistrer la note</button>
-            <button class="btn primary" type="button" disabled={busy} onclick={() => act("issue")}>Émettre</button>
-            <button class="btn danger" type="button" disabled={busy} onclick={() => act("cancel")}>Annuler</button>
-          </div>
         {:else}
-          <p class="muted">{invoice.notes ?? ""}</p>
-          <div class="actions">
-            {#if invoice.status === "issued"}
-              <button class="btn primary" type="button" disabled={busy} onclick={() => act("paid")}>Marquer payée</button>
-            {/if}
-            {#if invoice.status !== "cancelled"}
-              <button class="btn danger" type="button" disabled={busy} onclick={() => act("cancel")}>Annuler la facture</button>
-            {/if}
+          <div class="invoice-tools">
+            <div class="actions">
+              {#if invoice.status === "issued"}
+                <button class="btn primary" type="button" disabled={busy} onclick={() => act("paid")}>{m.invoices.markPaid}</button>
+              {/if}
+              {#if invoice.status !== "cancelled"}
+                <button class="btn danger" type="button" disabled={busy} onclick={() => act("cancel")}>{m.invoices.cancelInvoice}</button>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>
     {:else}
-      <p class="empty">Sélectionnez une facture ou créez-en une. Les prestations d'un rendez-vous et les produits vendus y sont regroupés.</p>
+      <p class="empty">{m.invoices.pick}</p>
     {/if}
   </section>
 </section>
+
+<style>
+  .invoice-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--panel);
+  }
+  .sheet-stage {
+    background: #5c5678;
+    padding: 28px 20px 32px;
+  }
+  .invoice-sheet {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #f4f4f6;
+    color: #1b1b2f;
+    padding: 36px 40px 32px;
+    box-shadow: 0 18px 40px rgba(20, 16, 40, 0.28);
+  }
+  .sheet-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: #1b1b2f;
+    color: #f4f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 750;
+    flex: none;
+  }
+  .brand-lockup strong {
+    display: block;
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 750;
+  }
+  .brand-lockup span {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: #3a3a52;
+  }
+  .sheet-title {
+    text-align: right;
+    flex: none;
+  }
+  .sheet-title h3 {
+    margin: 0;
+    font-size: 42px;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    font-weight: 800;
+  }
+  .sheet-title p {
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+  .sheet-number {
+    font-weight: 700;
+  }
+  .parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin: 28px 0 22px;
+  }
+  .parties h4,
+  .sheet-bottom h4,
+  .sheet-terms h4 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 750;
+  }
+  .parties p,
+  .sheet-bottom p,
+  .sheet-contact p,
+  .sheet-terms p {
+    margin: 0;
+    line-height: 1.45;
+  }
+  .sheet-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .sheet-table th,
+  .sheet-table td {
+    border-bottom: 0;
+    padding: 10px 12px 10px 0;
+    vertical-align: top;
+    color: #1b1b2f;
+    text-align: left;
+  }
+  .sheet-table th {
+    font-size: 14px;
+    font-weight: 750;
+    border-bottom: 1.5px solid #1b1b2f;
+    padding-top: 0;
+  }
+  .sheet-table .num {
+    width: 92px;
+    text-align: center;
+    border-left: 1.5px solid #1b1b2f;
+    padding-left: 8px;
+  }
+  .sheet-table .total {
+    text-align: right;
+    padding-right: 0;
+  }
+  .linkish {
+    display: block;
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #5c5678;
+    font-size: 12px;
+    text-decoration: underline;
+  }
+  .sheet-bottom {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 28px;
+    margin-top: 8px;
+    padding-top: 14px;
+    border-top: 1.5px solid #1b1b2f;
+  }
+  .sheet-totals div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 3px 0;
+    font-weight: 750;
+  }
+  .sheet-totals .grand {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1.5px solid #1b1b2f;
+    font-size: 15px;
+  }
+  .sheet-foot {
+    display: grid;
+    grid-template-columns: 0.7fr 1.3fr;
+    gap: 28px;
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1.5px solid #1b1b2f;
+  }
+  .sheet-terms {
+    text-align: right;
+  }
+  .invoice-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 20px 28px;
+    background: var(--panel);
+  }
+</style>

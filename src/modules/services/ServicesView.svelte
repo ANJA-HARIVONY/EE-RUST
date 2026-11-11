@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
+  import { messages, uiLocale } from "../../lib/i18n/index.svelte";
   import { errText } from "../../lib/labels";
   import { centsToInput, formatMoney, inputToCents } from "../../lib/money";
   import type { Bootstrap, Service } from "../../lib/types";
@@ -16,6 +17,8 @@
   let active = $state(true);
   let error = $state<string | null>(null);
   let busy = $state(false);
+  const m = $derived(messages());
+  const loc = $derived(uiLocale());
 
   async function load() {
     items = await api.servicesList(includeInactive);
@@ -45,7 +48,7 @@
     const priceCents = inputToCents(price);
     const durationMinutes = Number(duration);
     if (priceCents === null || !Number.isInteger(durationMinutes) || durationMinutes <= 0) {
-      error = "Durée ou prix invalide.";
+      error = m.services.invalid;
       return;
     }
     busy = true;
@@ -76,43 +79,43 @@
 <section class="split">
   <aside class="list">
     <header>
-      <h2>Services</h2>
-      <button class="btn primary" onclick={create}>Nouveau</button>
+      <h2>{m.services.title}</h2>
+      <button class="btn primary" onclick={create}>{m.common.new}</button>
     </header>
     <label class="field rowish" style="padding: 8px 12px;">
       <input type="checkbox" bind:checked={includeInactive} onchange={load} />
-      <span>Afficher les inactifs</span>
+      <span>{m.common.showInactive}</span>
     </label>
     <div class="scroll">
       {#each items as service (service.id)}
         <button class="row" class:active={selected === service.id} onclick={() => open(service)}>
           <b>{service.name}</b>
           <span>
-            {service.durationMinutes} min · {formatMoney(service.priceCents, boot.settings.currency, boot.locale)}
-            {#if !service.active} · inactif{/if}
+            {service.durationMinutes} min · {formatMoney(service.priceCents, boot.settings.currency, loc)}
+            {#if !service.active}{m.common.inactiveSuffix}{/if}
           </span>
         </button>
       {:else}
-        <p class="empty">Aucune prestation.</p>
+        <p class="empty">{m.services.empty}</p>
       {/each}
     </div>
   </aside>
   <section class="detail">
-    <header><h2>{selected === "new" ? "Nouvelle prestation" : "Prestation"}</h2></header>
+    <header><h2>{selected === "new" ? m.services.newTitle : m.services.cardTitle}</h2></header>
     {#if selected === null}
-      <p class="empty">Sélectionnez une prestation.</p>
+      <p class="empty">{m.services.pick}</p>
     {:else}
       <form class="form" onsubmit={(event) => { event.preventDefault(); save(); }}>
         {#if error}<p class="error">{error}</p>{/if}
-        <label class="field">Nom <input bind:value={name} required /></label>
+        <label class="field">{m.common.name} <input bind:value={name} required /></label>
         <div class="cols">
-          <label class="field">Durée (minutes) <input type="number" min="1" bind:value={duration} /></label>
-          <label class="field">Prix HT ({boot.settings.currency}) <input bind:value={price} /></label>
+          <label class="field">{m.services.duration} <input type="number" min="1" bind:value={duration} /></label>
+          <label class="field">{m.services.priceExcl(boot.settings.currency)} <input bind:value={price} /></label>
         </div>
-        <label class="field">Description <textarea bind:value={description}></textarea></label>
-        <label class="field rowish"><input type="checkbox" bind:checked={active} /> Active</label>
+        <label class="field">{m.common.description} <textarea bind:value={description}></textarea></label>
+        <label class="field rowish"><input type="checkbox" bind:checked={active} /> {m.common.activeFem}</label>
         <div class="actions">
-          <button class="btn primary" disabled={busy}>Enregistrer</button>
+          <button class="btn primary" disabled={busy}>{m.common.save}</button>
         </div>
       </form>
     {/if}

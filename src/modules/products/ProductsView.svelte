@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { api } from "../../lib/api";
-  import { errText, movementKind } from "../../lib/labels";
+  import { messages, movementLabel, movementReason, uiLocale } from "../../lib/i18n/index.svelte";
+  import { errText } from "../../lib/labels";
   import { centsToInput, formatMoney, inputToCents } from "../../lib/money";
   import { formatWhen } from "../../lib/dates";
   import type { Bootstrap, Product, StockMovement } from "../../lib/types";
@@ -22,6 +23,8 @@
   let moveReason = $state("");
   let error = $state<string | null>(null);
   let busy = $state(false);
+  const m = $derived(messages());
+  const loc = $derived(uiLocale());
 
   const current = $derived(items.find((item) => item.id === selected) ?? null);
 
@@ -57,7 +60,7 @@
     const priceCents = inputToCents(price);
     const lowStockThreshold = Number(threshold);
     if (priceCents === null || !Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
-      error = "Prix ou seuil invalide.";
+      error = m.products.invalid;
       return;
     }
     busy = true;
@@ -86,7 +89,7 @@
     if (typeof selected !== "number") return;
     const quantity = Number(moveQty);
     if (!Number.isInteger(quantity) || quantity < 0) {
-      error = "Quantité invalide.";
+      error = m.products.invalidQty;
       return;
     }
     busy = true;
@@ -118,81 +121,81 @@
 <section class="split">
   <aside class="list">
     <header>
-      <h2>Produits</h2>
-      <button class="btn primary" onclick={create}>Nouveau</button>
+      <h2>{m.products.title}</h2>
+      <button class="btn primary" onclick={create}>{m.common.new}</button>
     </header>
     <label class="field rowish" style="padding: 8px 12px;">
       <input type="checkbox" bind:checked={includeInactive} onchange={load} />
-      <span>Afficher les inactifs</span>
+      <span>{m.common.showInactive}</span>
     </label>
     <div class="scroll">
       {#each items as product (product.id)}
         <button class="row" class:active={selected === product.id} onclick={() => open(product)}>
           <b>{product.name}</b>
           <span class:warn={product.lowStock}>
-            Stock {product.stockQty}
-            {#if product.lowStock} · seuil {product.lowStockThreshold}{/if}
-            · {formatMoney(product.priceCents, boot.settings.currency, boot.locale)}
+            {m.products.stock(product.stockQty)}
+            {#if product.lowStock}{m.products.low(product.lowStockThreshold)}{/if}
+            · {formatMoney(product.priceCents, boot.settings.currency, loc)}
           </span>
         </button>
       {:else}
-        <p class="empty">Aucun produit.</p>
+        <p class="empty">{m.products.empty}</p>
       {/each}
     </div>
   </aside>
   <section class="detail">
-    <header><h2>{selected === "new" ? "Nouveau produit" : "Fiche produit"}</h2></header>
+    <header><h2>{selected === "new" ? m.products.newTitle : m.products.cardTitle}</h2></header>
     {#if selected === null}
-      <p class="empty">Sélectionnez un produit. La vente se fait depuis Factures.</p>
+      <p class="empty">{m.products.pick}</p>
     {:else}
       <form class="form" onsubmit={(event) => { event.preventDefault(); save(); }}>
         {#if error}<p class="error">{error}</p>{/if}
         <div class="cols">
-          <label class="field">Nom <input bind:value={name} required /></label>
-          <label class="field">SKU <input bind:value={sku} /></label>
+          <label class="field">{m.common.name} <input bind:value={name} required /></label>
+          <label class="field">{m.products.sku} <input bind:value={sku} /></label>
         </div>
         <div class="cols">
-          <label class="field">Prix HT ({boot.settings.currency}) <input bind:value={price} /></label>
-          <label class="field">Seuil d'alerte <input type="number" min="0" bind:value={threshold} /></label>
+          <label class="field">{m.products.priceExcl(boot.settings.currency)} <input bind:value={price} /></label>
+          <label class="field">{m.products.threshold} <input type="number" min="0" bind:value={threshold} /></label>
         </div>
-        <label class="field">Description <textarea bind:value={description}></textarea></label>
-        <label class="field rowish"><input type="checkbox" bind:checked={active} /> Actif</label>
+        <label class="field">{m.common.description} <textarea bind:value={description}></textarea></label>
+        <label class="field rowish"><input type="checkbox" bind:checked={active} /> {m.common.active}</label>
         {#if current}
-          <p>Stock actuel : <b class:warn={current.lowStock}>{current.stockQty}</b></p>
+          <p>{m.products.currentStock} <b class:warn={current.lowStock}>{current.stockQty}</b></p>
         {/if}
         <div class="actions">
-          <button class="btn primary" disabled={busy}>Enregistrer</button>
+          <button class="btn primary" disabled={busy}>{m.common.save}</button>
         </div>
       </form>
       {#if typeof selected === "number"}
         <form class="form" onsubmit={(event) => { event.preventDefault(); move(); }}>
-          <h3>Mouvement de stock</h3>
+          <h3>{m.products.movementTitle}</h3>
           <div class="cols">
-            <label class="field">Type
+            <label class="field">{m.products.type}
               <select bind:value={moveKind}>
-                <option value="in">Entrée</option>
-                <option value="out">Sortie</option>
-                <option value="adjustment">Ajuster au stock cible</option>
+                <option value="in">{m.products.kindIn}</option>
+                <option value="out">{m.products.kindOut}</option>
+                <option value="adjustment">{m.products.kindAdjust}</option>
               </select>
             </label>
-            <label class="field">{moveKind === "adjustment" ? "Stock cible" : "Quantité"}
+            <label class="field">{moveKind === "adjustment" ? m.products.targetStock : m.products.quantity}
               <input type="number" min="0" bind:value={moveQty} />
             </label>
           </div>
-          <label class="field">Motif <input bind:value={moveReason} /></label>
+          <label class="field">{m.products.reason} <input bind:value={moveReason} /></label>
           <div class="actions">
-            <button class="btn" disabled={busy}>Appliquer</button>
+            <button class="btn" disabled={busy}>{m.products.apply}</button>
           </div>
           {#if history.length}
             <table>
-              <thead><tr><th>Quand</th><th>Type</th><th>Qté</th><th>Motif</th></tr></thead>
+              <thead><tr><th>{m.products.when}</th><th>{m.products.type}</th><th>{m.products.qty}</th><th>{m.products.reason}</th></tr></thead>
               <tbody>
                 {#each history as movement (movement.id)}
                   <tr>
-                    <td>{formatWhen(movement.createdAt, boot.locale)}</td>
-                    <td>{movementKind[movement.kind] ?? movement.kind}</td>
+                    <td>{formatWhen(movement.createdAt, loc)}</td>
+                    <td>{movementLabel(movement.kind)}</td>
                     <td>{movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity}</td>
-                    <td>{movement.reason ?? ""}</td>
+                    <td>{movementReason(movement.reason)}</td>
                   </tr>
                 {/each}
               </tbody>

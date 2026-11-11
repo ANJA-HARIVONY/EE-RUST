@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
+  import { messages, roleName } from "../../lib/i18n/index.svelte";
   import { errText, fullName } from "../../lib/labels";
   import type { Employee, Role } from "../../lib/types";
 
@@ -18,6 +19,7 @@
   let notes = $state("");
   let error = $state<string | null>(null);
   let busy = $state(false);
+  const m = $derived(messages());
 
   async function load() {
     items = await api.employeesList(includeInactive);
@@ -86,52 +88,52 @@
 <section class="split">
   <aside class="list">
     <header>
-      <h2>Employés</h2>
-      <button class="btn primary" onclick={create}>Nouveau</button>
+      <h2>{m.employees.title}</h2>
+      <button class="btn primary" onclick={create}>{m.common.new}</button>
     </header>
     <label class="field rowish" style="padding: 8px 12px;">
       <input type="checkbox" bind:checked={includeInactive} onchange={load} />
-      <span>Afficher les inactifs</span>
+      <span>{m.common.showInactive}</span>
     </label>
     <div class="scroll">
       {#each items as employee (employee.id)}
         <button class="row" class:active={selected === employee.id} onclick={() => open(employee)}>
           <b><i class="swatch" style:background={employee.color}></i>{fullName(employee.firstName, employee.lastName)}</b>
-          <span>{employee.roleLabel}{employee.active ? "" : " · inactif"}</span>
+          <span>{roleName(employee.roleCode, employee.roleLabel)}{employee.active ? "" : m.common.inactiveSuffix}</span>
         </button>
       {/each}
     </div>
   </aside>
   <section class="detail">
-    <header><h2>{selected === "new" ? "Nouvel employé" : "Fiche employé"}</h2></header>
+    <header><h2>{selected === "new" ? m.employees.newTitle : m.employees.cardTitle}</h2></header>
     {#if error && selected === null}<p class="error" style="margin: 12px;">{error}</p>{/if}
     {#if selected === null}
-      <p class="empty">Sélectionnez un employé. L'utilisateur initial vient du fichier .env.</p>
+      <p class="empty">{m.employees.pick}</p>
     {:else}
       <form class="form" onsubmit={(event) => { event.preventDefault(); save(); }}>
         {#if error}<p class="error">{error}</p>{/if}
         <div class="cols">
-          <label class="field">Prénom <input bind:value={firstName} required /></label>
-          <label class="field">Nom <input bind:value={lastName} required /></label>
+          <label class="field">{m.common.firstName} <input bind:value={firstName} required /></label>
+          <label class="field">{m.common.lastName} <input bind:value={lastName} required /></label>
         </div>
         <div class="cols">
-          <label class="field">Téléphone <input bind:value={phone} /></label>
-          <label class="field">E-mail <input bind:value={email} /></label>
+          <label class="field">{m.common.phone} <input bind:value={phone} /></label>
+          <label class="field">{m.common.email} <input bind:value={email} /></label>
         </div>
         <div class="cols">
-          <label class="field">Rôle
+          <label class="field">{m.employees.role}
             <select bind:value={roleId}>
               {#each roles as role (role.id)}
-                <option value={role.id}>{role.label}</option>
+                <option value={role.id}>{roleName(role.code, role.label)}</option>
               {/each}
             </select>
           </label>
-          <label class="field">Couleur agenda <input type="color" bind:value={color} /></label>
+          <label class="field">{m.employees.color} <input type="color" bind:value={color} /></label>
         </div>
-        <label class="field">Notes <textarea bind:value={notes}></textarea></label>
-        <label class="field rowish"><input type="checkbox" bind:checked={active} /> Actif</label>
+        <label class="field">{m.common.notes} <textarea bind:value={notes}></textarea></label>
+        <label class="field rowish"><input type="checkbox" bind:checked={active} /> {m.common.active}</label>
         <div class="actions">
-          <button class="btn primary" disabled={busy}>Enregistrer</button>
+          <button class="btn primary" disabled={busy}>{m.common.save}</button>
         </div>
       </form>
     {/if}

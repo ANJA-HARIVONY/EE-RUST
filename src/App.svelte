@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { api } from "./lib/api";
+  import { adoptLocale, messages, roleName } from "./lib/i18n/index.svelte";
   import { errText, fullName } from "./lib/labels";
   import type { Bootstrap, ModuleId } from "./lib/types";
   import Sidebar from "./lib/components/Sidebar.svelte";
@@ -17,6 +18,7 @@
   let error = $state<string | null>(null);
   let module = $state<ModuleId>("agenda");
   let lowStock = $state(0);
+  const m = $derived(messages());
 
   async function refreshStock() {
     lowStock = await api.lowStockCount();
@@ -32,6 +34,7 @@
       const loaded = await api.bootstrap();
       boot = loaded;
       lowStock = loaded.lowStockCount;
+      adoptLocale(loaded.locale);
       try {
         await getCurrentWindow().setTitle(`EE Salon — ${loaded.settings.name}`);
       } catch {
@@ -47,22 +50,22 @@
   <header class="topbar">
     <div class="brand">
       <strong>{boot?.settings.name ?? "EE Salon"}</strong>
-      <span>Gestion du salon</span>
+      <span>{m.app.subtitle}</span>
     </div>
     {#if boot}
       <div class="who">
         {fullName(boot.currentUser.firstName, boot.currentUser.lastName)}
-        <div>{boot.currentUser.roleLabel}</div>
+        <div>{roleName(boot.currentUser.roleCode, boot.currentUser.roleLabel)}</div>
       </div>
     {/if}
   </header>
   {#if error}
     <div class="boot-error">
-      <h1>Démarrage impossible</h1>
+      <h1>{m.app.bootError}</h1>
       <p>{error}</p>
     </div>
   {:else if !boot}
-    <p class="boot">Ouverture de la base locale…</p>
+    <p class="boot">{m.app.opening}</p>
   {:else}
     <div class="body">
       <Sidebar current={module} {lowStock} onChange={(id) => (module = id)} />
